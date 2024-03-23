@@ -54,9 +54,10 @@ def process_chunk(chunk, index, chunk_length_ms):
 
     return words_durations
 
-def new_open_audio():
+def new_open_audio(audio_file_name , text_file_name):
     # Load and preprocess audio
-    audio = AudioSegment.from_file("C:\\Users\\Avinash Roopnarine\\Desktop\\Input\\sentence1.wav")
+    audio = AudioSegment.from_file(f'C:\\Users\\Avinash Roopnarine\\Desktop\\Input\\{audio_file_name}')
+
     audio = audio.set_channels(1).set_frame_rate(16000)
     audio.export("temp.wav", format="wav")
 
@@ -92,7 +93,38 @@ def new_open_audio():
     for word_info in final_words_durations:
         print(f"Word: {word_info[0]}, Start: {word_info[1]}, End: {word_info[2]}, Match: {word_info[3]}")
 
-    return "Success"
+    # Read words from the text file
+    words_from_file = read_words_from_file(text_file_name)
+
+    # Update final_words_durations with match information
+    updated_final_words_durations = []  # Use a new list to store the dictionaries
+    for i, (word, start, end) in enumerate(final_words_durations):
+        if i < len(words_from_file):
+            # Convert each tuple into a dictionary, and add 'match' information
+            match = compare_words(word, words_from_file[i])
+            updated_final_words_durations.append({
+                'word': word,
+                'start': start,
+                'end': end,
+                'match': match
+            })
+        else:
+            # If no corresponding word in the text file, assume no match
+            updated_final_words_durations.append({
+                'word': word,
+                'start': start,
+                'end': end,
+                'match': False
+            })
+
+    # Print updated final_words_durations with match information
+    for word_info in updated_final_words_durations:
+        print(f"Word: {word_info['word']}, Start: {word_info['start']}, End: {word_info['end']}, Match: {word_info['match']}")
+
+    return {
+        'audio_data': updated_final_words_durations,
+        'text_data': words_from_file
+    }
 
 
 # Function to generate Double Metaphone keys for a given word
@@ -119,9 +151,11 @@ def compare_words(word1, word2):
 # print(compare_words('example', 'sample'))  # Should analyze the similarity based on phonetics
 
 
-def read_words_from_file():
+def read_words_from_file(text_file_name):
     # Path to your text file
-    text_file_path = "C:\\Users\\Avinash Roopnarine\\Desktop\\Input\\sentences1.txt"  # Replace with your text file path
+    text_file_path = f'C:\\Users\\Avinash Roopnarine\\Desktop\\Input\\{text_file_name}'  # Replace with your text file path
+
+
     
     # List to store words
     words_list = []
@@ -142,5 +176,3 @@ def read_words_from_file():
     
     # Return the list of words
     return words_list
-
-    
