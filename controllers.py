@@ -57,6 +57,7 @@ def process_chunk(chunk, index, chunk_length_ms):
 def new_open_audio(audio_file_name , text_file_name):
     # Load and preprocess audio
     audio = AudioSegment.from_file(f'C:\\Users\\Avinash Roopnarine\\Desktop\\Input\\{audio_file_name}')
+
     audio = audio.set_channels(1).set_frame_rate(16000)
     audio.export("temp.wav", format="wav")
 
@@ -73,6 +74,24 @@ def new_open_audio(audio_file_name , text_file_name):
         futures = [executor.submit(process_chunk, chunk, i, chunk_length_ms) for i, chunk in enumerate(chunks)]
         for future in futures:
             final_words_durations.extend(future.result())
+            
+    # Read words from the text file
+    words_from_file = read_words_from_file()
+
+    # Update final_words_durations with match information
+    for i, (word, start, end) in enumerate(final_words_durations):
+        # Check if there's a corresponding word in the text file
+        if i < len(words_from_file):
+            # Compare words and add the result to the tuple
+            match = compare_words(word, words_from_file[i])
+            final_words_durations[i] = (word, start, end, match)
+        else:
+            # No more words in the text file to compare, assume no match
+            final_words_durations[i] = (word, start, end, False)
+
+    # Print updated final_words_durations with match information
+    for word_info in final_words_durations:
+        print(f"Word: {word_info[0]}, Start: {word_info[1]}, End: {word_info[2]}, Match: {word_info[3]}")
 
     # Read words from the text file
     words_from_file = read_words_from_file(text_file_name)
@@ -135,6 +154,8 @@ def compare_words(word1, word2):
 def read_words_from_file(text_file_name):
     # Path to your text file
     text_file_path = f'C:\\Users\\Avinash Roopnarine\\Desktop\\Input\\{text_file_name}'  # Replace with your text file path
+
+
     
     # List to store words
     words_list = []
