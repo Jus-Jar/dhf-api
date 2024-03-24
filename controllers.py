@@ -51,7 +51,7 @@ def process_chunk(chunk, index, chunk_length_ms):
 
 def new_open_audio(audio_file_name , text_file_name):
     # Load and preprocess audio
-    audio_path = f'C:\\Users\\Avinash Roopnarine\\Desktop\\Input\\{audio_file_name}'
+    audio_path = f'input\{audio_file_name}'
     audio = AudioSegment.from_file(audio_path)
 
     audio = audio.set_channels(1).set_frame_rate(16000)
@@ -69,6 +69,7 @@ def new_open_audio(audio_file_name , text_file_name):
     with ThreadPoolExecutor(max_workers=os.cpu_count() * 5) as executor:
         futures = [executor.submit(process_chunk, chunk, i, chunk_length_ms) for i, chunk in enumerate(chunks)]
         for future in futures:
+
             # Note: Now expecting dictionaries with 'word' keys
             final_words.extend([item['word'] for item in future.result()])
 
@@ -119,7 +120,7 @@ def compare_words(word1, word2):
 
 def read_words_from_file(text_file_name):
     # Path to your text file
-    text_file_path = f'C:\\Users\\Avinash Roopnarine\\Desktop\\Input\\{text_file_name}'  # Replace with your text file path
+    text_file_path = f'input\{text_file_name}'  # Replace with your text file path
 
 
     
