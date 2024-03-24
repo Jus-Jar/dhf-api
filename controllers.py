@@ -53,6 +53,7 @@ def new_open_audio(audio_file_name , text_file_name):
     # Load and preprocess audio
     audio_path = f'C:\\Users\\Avinash Roopnarine\\Desktop\\Input\\{audio_file_name}'
     audio = AudioSegment.from_file(audio_path)
+
     audio = audio.set_channels(1).set_frame_rate(16000)
     audio.export("temp.wav", format="wav")
 
@@ -70,6 +71,7 @@ def new_open_audio(audio_file_name , text_file_name):
         for future in futures:
             # Note: Now expecting dictionaries with 'word' keys
             final_words.extend([item['word'] for item in future.result()])
+
 
     # Read words from the text file
     words_from_file = read_words_from_file(text_file_name)
@@ -118,6 +120,8 @@ def compare_words(word1, word2):
 def read_words_from_file(text_file_name):
     # Path to your text file
     text_file_path = f'C:\\Users\\Avinash Roopnarine\\Desktop\\Input\\{text_file_name}'  # Replace with your text file path
+
+
     
     # List to store words
     words_list = []
