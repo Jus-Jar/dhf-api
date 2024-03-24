@@ -12,51 +12,48 @@ from concurrent.futures import ThreadPoolExecutor
 
 
 def process_chunk(chunk, index, chunk_length_ms):
-    chunk_start = index * chunk_length_ms
-    chunk_hash = hashlib.md5(chunk.raw_data).hexdigest()  # Generate a unique hash for this chunk
-    cache_file = f"cache_{chunk_hash}.json"  # Cache file based on the chunk's hash
+    chunk_hash = hashlib.md5(chunk.raw_data).hexdigest()
+    cache_file = f"cache_{chunk_hash}.json"
 
-    # Check if we already processed this chunk before and saved its results
+    # Check if this chunk has been processed before
     if os.path.exists(cache_file):
         with open(cache_file, 'r') as file:
             print(f"Retrieving cached results for chunk {index}")
-            return json.load(file)  # Return the cached results
+            return json.load(file)  # Return cached results without reprocessing
 
+    # If not cached, process the chunk
     chunk_name = f"chunk{index}.wav"
     chunk.export(chunk_name, format="wav")  # Export the audio chunk to a WAV file
+    recognizer = sr.Recognizer()
 
-    recognizer = sr.Recognizer()  # Initialize the recognizer
-    words_durations = []  # List to store the (word, start_time, end_time) tuples
-
-    # Use the SpeechRecognition library to convert the audio to text
     with sr.AudioFile(chunk_name) as source:
         audio_listened = recognizer.record(source)  # Listen to the audio file
         try:
-            text = recognizer.recognize_google(audio_listened)  # Use Google Web Speech API to decode the audio
+            # Perform speech recognition using Google's Web Speech API
+            text = recognizer.recognize_google(audio_listened)
             words = text.split()  # Split the recognized text into words
-            chunk_duration = len(chunk)  # Get the duration of the chunk in milliseconds
-            word_duration = chunk_duration / len(words) if words else 0  # Calculate the duration of each word
 
-            # Calculate the start and end times for each word
-            for j, word in enumerate(words):
-                word_start = chunk_start + j * word_duration
-                word_end = word_start + word_duration
-                words_durations.append((word, word_start, word_end))  # Add the word's details to the list
+            # Store recognized words without calculating durations
+            recognized_data = [{'word': word} for word in words]
 
             # Cache the results to avoid reprocessing in the future
             with open(cache_file, 'w') as file:
-                json.dump(words_durations, file)
+                json.dump(recognized_data, file)
 
+            return recognized_data
         except sr.UnknownValueError:
             print(f"Chunk {index}: SpeechRecognition could not understand audio")
         except sr.RequestError as e:
             print(f"Chunk {index}: Could not request results from SpeechRecognition service; {e}")
 
-    return words_durations
+    return []
+
 
 def new_open_audio(audio_file_name , text_file_name):
     # Load and preprocess audio
-    audio = AudioSegment.from_file(f'input\{audio_file_name}')
+    audio_path = f'input\{audio_file_name}'
+    audio = AudioSegment.from_file(audio_path)
+
     audio = audio.set_channels(1).set_frame_rate(16000)
     audio.export("temp.wav", format="wav")
 
@@ -64,44 +61,33 @@ def new_open_audio(audio_file_name , text_file_name):
     chunk_length_ms = 30000  # milliseconds
     chunks = make_chunks(audio, chunk_length_ms)
 
-    # Prepare for parallel processing
-    final_words_durations = []
-    default_workers = os.cpu_count() * 5  # Determine the number of parallel workers
+    # Use Vosk to get word timestamps, but not the transcription
+    vosk_data = vosk_open_audio('temp.wav')
 
-    # Process audio chunks in parallel
-    with ThreadPoolExecutor(max_workers=default_workers) as executor:
+    # Process audio chunks using Google Web Speech API
+    final_words = []  # This will store only the Google API transcriptions
+    with ThreadPoolExecutor(max_workers=os.cpu_count() * 5) as executor:
         futures = [executor.submit(process_chunk, chunk, i, chunk_length_ms) for i, chunk in enumerate(chunks)]
         for future in futures:
-            final_words_durations.extend(future.result())
+
+            # Note: Now expecting dictionaries with 'word' keys
+            final_words.extend([item['word'] for item in future.result()])
+
 
     # Read words from the text file
     words_from_file = read_words_from_file(text_file_name)
 
-    # Update final_words_durations with match information
-    updated_final_words_durations = []  # Use a new list to store the dictionaries
-    for i, (word, start, end) in enumerate(final_words_durations):
-        if i < len(words_from_file):
-            # Convert each tuple into a dictionary, and add 'match' information
-            match = compare_words(word, words_from_file[i])
-            updated_final_words_durations.append({
-                'word': word,
-                'start': start,
-                'end': end,
-                'match': match
-            })
-        else:
-            # If no corresponding word in the text file, assume no match
-            updated_final_words_durations.append({
-                'word': word,
-                'start': start,
-                'end': end,
-                'match': False
-            })
+    # Initialize updated_final_words_durations for later use with Vosk data
+    updated_final_words_durations = [{'word': word} for word in final_words]  # Prepare for Vosk data
 
-    # Print updated final_words_durations with match information
-    for word_info in updated_final_words_durations:
-        print(f"Word: {word_info['word']}, Start: {word_info['start']}, End: {word_info['end']}, Match: {word_info['match']}")
+    # Assuming 'updated_final_words_durations' and 'vosk_data' lists correspond one-to-one
+    for vosk_info, updated_info in zip(vosk_data, updated_final_words_durations):
+        updated_info['start'] = vosk_info['start']
+        updated_info['end'] = vosk_info['end']
+        # If words match, update 'match' field, else set it to False
+        updated_info['match'] = updated_info['word'] in words_from_file
 
+    # Return final data structure
     return {
         'audio_data': updated_final_words_durations,
         'text_data': words_from_file
@@ -157,3 +143,51 @@ def read_words_from_file(text_file_name):
     
     # Return the list of words
     return words_list
+
+from vosk import Model, KaldiRecognizer
+import wave
+
+
+# Below are the modifications and additions to the user's code based on the instructions provided.
+
+# Updating the vosk_open_audio function to collect and return the words with their timestamps
+def vosk_open_audio(audio_file):
+    # Path to your Vosk model directory
+    model_path = "C:\\Users\\Avinash Roopnarine\\Desktop\\vosk-model-small-en-us-0.15"
+    model = Model(model_path)
+     
+    # Open your audio file
+    wf = wave.open(audio_file, "rb")
+
+    # Create a recognizer object
+    rec = KaldiRecognizer(model, wf.getframerate())
+    rec.SetWords(True)  # Tell Vosk to return words with timestamps
+
+    # Process the entire audio file
+    results = []
+    while True:
+        data = wf.readframes(4000)  # Read 4000 frames from the file
+        if len(data) == 0:
+            break
+        if rec.AcceptWaveform(data):
+            results.append(json.loads(rec.Result()))
+
+    # Add the final result to the results list
+    results.append(json.loads(rec.FinalResult()))
+
+    # Prepare a list for the Vosk processed data
+    vosk_processed_data = []
+    for result in results:
+        if 'result' in result:  # Check if there are words detected
+            for word_info in result['result']:
+                # Convert seconds to milliseconds for consistency with the rest of the system
+                start_ms = int(word_info['start'] * 1000)
+                end_ms = int(word_info['end'] * 1000)
+                vosk_processed_data.append({
+                    'word': word_info['word'],
+                    'start': start_ms,
+                    'end': end_ms
+                })
+                
+    return vosk_processed_data  # Return the list of word information
+
