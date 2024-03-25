@@ -10,6 +10,9 @@ from pydub.utils import make_chunks
 from concurrent.futures import ThreadPoolExecutor
 
 
+from vosk import Model, KaldiRecognizer
+import wave
+
 
 def process_chunk(chunk, index, chunk_length_ms):
     chunk_hash = hashlib.md5(chunk.raw_data).hexdigest()
@@ -144,16 +147,12 @@ def read_words_from_file(text_file_name):
     # Return the list of words
     return words_list
 
-from vosk import Model, KaldiRecognizer
-import wave
-
-
 # Below are the modifications and additions to the user's code based on the instructions provided.
 
 # Updating the vosk_open_audio function to collect and return the words with their timestamps
 def vosk_open_audio(audio_file):
     # Path to your Vosk model directory
-    model_path = "C:\\Users\\Avinash Roopnarine\\Desktop\\vosk-model-small-en-us-0.15"
+    model_path = 'vosk-model-small-en-us-0.15'
     model = Model(model_path)
      
     # Open your audio file
