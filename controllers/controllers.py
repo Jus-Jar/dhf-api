@@ -17,6 +17,8 @@ from praatio import audio
 import requests
 import xml.etree.ElementTree as ET
 
+from controllers.mongo_controllers import create_new_dhf_lesson
+
 url = "https://clarin.phonetik.uni-muenchen.de/BASWebServices/services/runMAUSBasic"
 
 
@@ -24,11 +26,11 @@ def process_chunk(chunk, index, chunk_length_ms):
     chunk_hash = hashlib.md5(chunk.raw_data).hexdigest()
     cache_file = f"cache_{chunk_hash}.json"
 
-    # Check if this chunk has been processed before
-    if os.path.exists(cache_file):
-        with open(cache_file, 'r') as file:
-            print(f"Retrieving cached results for chunk {index}")
-            return json.load(file)  # Return cached results without reprocessing
+    # # Check if this chunk has been processed before
+    # if os.path.exists(cache_file):
+    #     with open(cache_file, 'r') as file:
+    #         print(f"Retrieving cached results for chunk {index}")
+    #         return json.load(file)  # Return cached results without reprocessing
 
     # If not cached, process the chunk
     chunk_name = f"chunk{index}.wav"
@@ -58,10 +60,16 @@ def process_chunk(chunk, index, chunk_length_ms):
     return []
 
 
-def new_open_audio(audio_file_name, text_file_name):
+# audioFile and text_file
+#input <== temporarily store audio and text file (audio.wav, text.txt)
+
+def new_open_audio(audio_file_name, passage_name):
     # Load and preprocess audio
-    audio_path = f'input\{audio_file_name}'
-    audio = AudioSegment.from_file(audio_path)
+    text_file_name = 'passage.txt'
+    audio_path = 'audio.wav'
+    audio_path2 = 'input/audio.wav'
+
+    audio = AudioSegment.from_file(audio_path2)
     audio = audio.set_channels(1).set_frame_rate(16000)
     audio.export("temp.wav", format="wav")
 
@@ -80,7 +88,9 @@ def new_open_audio(audio_file_name, text_file_name):
     words_from_file = read_words_from_file(text_file_name)
 
     # Get the durations from the TextGrid
-    word_durations = get_durations(url, audio_file_name, text_file_name)
+    durations =  get_durations(url, audio_path, text_file_name)
+    
+    word_durations = durations['durations']
     
     print(word_durations)
 
@@ -146,9 +156,12 @@ def new_open_audio(audio_file_name, text_file_name):
 
     print(updated_final_words_durations)
     # Return final data structure
+
+    #this function save the stuff to mongo db <============
     return {
         'audio_data': updated_final_words_durations,
-        'text_data': words_from_file
+        'text_data': words_from_file,
+        'duration_data': word_durations
     }
 
 
@@ -236,18 +249,63 @@ def generate_text_grid(url,audio_file_name , text_file_name):
     
 def get_durations(url, audio_file_name, text_file_name):
     inputFN = generate_text_grid(url, audio_file_name, text_file_name)
-    tg = textgrid.openTextgrid(inputFN, includeEmptyIntervals=False)
+    tg = textgrid.openTextgrid(inputFN, includeEmptyIntervals=True)
     
-    wordTier = tg.getTier('ORT-MAU')
+    tg1 = textgrid.openTextgrid(inputFN, includeEmptyIntervals=False)
+    
+    wordTier = tg1.getTier('ORT-MAU')
+    
+    wordTier_S = tg1.getTier('ORT-MAU')
     
     
     word_durations = [
         {
-            'word': entry.label if entry.label else "[Silence]",  # Use "[Silence]" for empty labels
+            'word': entry.label, 
             'start': int(entry.start * 1000),
             'end': int(entry.end * 1000)
         }
         for entry in wordTier.entries
     ]
+    
+    
+    word_durations_S = [
+        {
+            'word': entry.label if entry.label else "[Silence]",  # Use "[Silence]" for empty labels
+            'start': int(entry.start * 1000),
+            'end': int(entry.end * 1000)
+        }
+        for entry in wordTier_S.entries
+    ]
 
-    return word_durations
+    return {
+        'durations' : word_durations,
+        'durations_s' : word_durations_S
+    }
+
+    #Steps for get_durations with MongoDB implementation:
+    # if we do decide to store the textgrid, we can pull that from MongoDB
+    # THEN do processing
+
+    
+def analyzeVoice(audio_file_name , text_file_name):
+        
+    result = new_open_audio(audio_file_name, text_file_name)
+        
+    audio_data = result['audio_data']
+    duration_data = result['duration_data']
+    
+    count = 0
+    
+    for item in audio_data:
+        if item['match'] == True:
+            count+=1
+    
+    accuracy = (count/len(audio_data)) * 100
+    
+    print(accuracy)
+    
+    return "Success"
+            
+        
+        
+         
