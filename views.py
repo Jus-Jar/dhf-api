@@ -1,6 +1,6 @@
 from flask import jsonify, request
 from app import app
-from controllers import  new_open_audio
+from controllers.controllers import  new_open_audio
 
 
 @app.route('/api/new', methods=['POST'])
