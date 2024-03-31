@@ -9,9 +9,15 @@ import speech_recognition as sr
 from pydub.utils import make_chunks
 from concurrent.futures import ThreadPoolExecutor
 
+from os.path import join
 
-from vosk import Model, KaldiRecognizer
-import wave
+from praatio import textgrid
+from praatio import audio
+
+import requests
+import xml.etree.ElementTree as ET
+
+url = "https://clarin.phonetik.uni-muenchen.de/BASWebServices/services/runMAUSBasic"
 
 
 def process_chunk(chunk, index, chunk_length_ms):
@@ -52,11 +58,10 @@ def process_chunk(chunk, index, chunk_length_ms):
     return []
 
 
-def new_open_audio(audio_file_name , text_file_name):
+def new_open_audio(audio_file_name, text_file_name):
     # Load and preprocess audio
     audio_path = f'input\{audio_file_name}'
     audio = AudioSegment.from_file(audio_path)
-
     audio = audio.set_channels(1).set_frame_rate(16000)
     audio.export("temp.wav", format="wav")
 
@@ -64,32 +69,82 @@ def new_open_audio(audio_file_name , text_file_name):
     chunk_length_ms = 30000  # milliseconds
     chunks = make_chunks(audio, chunk_length_ms)
 
-    # Use Vosk to get word timestamps, but not the transcription
-    vosk_data = vosk_open_audio('temp.wav')
-
     # Process audio chunks using Google Web Speech API
     final_words = []  # This will store only the Google API transcriptions
     with ThreadPoolExecutor(max_workers=os.cpu_count() * 5) as executor:
         futures = [executor.submit(process_chunk, chunk, i, chunk_length_ms) for i, chunk in enumerate(chunks)]
         for future in futures:
-
-            # Note: Now expecting dictionaries with 'word' keys
             final_words.extend([item['word'] for item in future.result()])
-
 
     # Read words from the text file
     words_from_file = read_words_from_file(text_file_name)
 
-    # Initialize updated_final_words_durations for later use with Vosk data
-    updated_final_words_durations = [{'word': word} for word in final_words]  # Prepare for Vosk data
+    # Get the durations from the TextGrid
+    word_durations = get_durations(url, audio_file_name, text_file_name)
+    
+    print(word_durations)
 
-    # Assuming 'updated_final_words_durations' and 'vosk_data' lists correspond one-to-one
-    for vosk_info, updated_info in zip(vosk_data, updated_final_words_durations):
-        updated_info['start'] = vosk_info['start']
-        updated_info['end'] = vosk_info['end']
-        # If words match, update 'match' field, else set it to False
-        updated_info['match'] = updated_info['word'] in words_from_file
+   # Initialize updated_final_words_durations for later use with duration data
+    updated_final_words_durations = []
 
+    # Dictionary to track how many times each word has been processed
+    word_occurrences_processed = {}
+
+    for word_index, word in enumerate(final_words):
+        normalized_word = word.lower()
+
+        # Determine the occurrence of this word instance
+        if normalized_word in word_occurrences_processed:
+            word_occurrences_processed[normalized_word] += 1
+        else:
+            word_occurrences_processed[normalized_word] = 1
+
+        current_occurrence = word_occurrences_processed[normalized_word]
+
+        # Find the matching duration for this specific occurrence
+        matched_duration = None
+        occurrence_counter = 0
+        for item in word_durations:
+            if item['word'].lower() == normalized_word:
+                occurrence_counter += 1
+                if occurrence_counter == current_occurrence:
+                    matched_duration = item
+                    break
+
+        # If there's a corresponding word in words_from_file, check for phonetic match
+        matched = False
+        fallback_timing = None
+        if word_index < len(words_from_file):
+            matched = compare_words(word, words_from_file[word_index])
+            # Use the index to find the corresponding timing from word_durations as fallback
+            if not matched and word_index < len(word_durations):
+                fallback_timing = word_durations[word_index]  # Fallback timing from the compared word
+
+        # Append the word information with timing information if matched, or fallback timing
+        if matched_duration:
+            updated_final_words_durations.append({
+                'word': word,
+                'start': matched_duration['start'],
+                'end': matched_duration['end'],
+                'match': matched
+            })
+        elif fallback_timing:
+            updated_final_words_durations.append({
+                'word': word,
+                'start': fallback_timing['start'],
+                'end': fallback_timing['end'],
+                'match': matched
+            })
+        else:
+            # If no timing information is available, consider how to handle this scenario
+            updated_final_words_durations.append({
+                'word': word,
+                'start': None,  # Consider a default or previous known timing
+                'end': None,
+                'match': matched
+            })
+
+    print(updated_final_words_durations)
     # Return final data structure
     return {
         'audio_data': updated_final_words_durations,
@@ -147,46 +202,52 @@ def read_words_from_file(text_file_name):
     # Return the list of words
     return words_list
 
-# Below are the modifications and additions to the user's code based on the instructions provided.
 
-# Updating the vosk_open_audio function to collect and return the words with their timestamps
-def vosk_open_audio(audio_file):
-    # Path to your Vosk model directory
-    model_path = 'vosk-model-small-en-us-0.15'
-    model = Model(model_path)
-     
-    # Open your audio file
-    wf = wave.open(audio_file, "rb")
+def generate_text_grid(url,audio_file_name , text_file_name):
+    # Prepare the payload
+    payload = {
+        'LANGUAGE': 'eng-US',  # Adjust the language code according to your needs
+        'OUTFORMAT': 'TextGrid',
+    }
+    files = {
+        'SIGNAL': ('audio.wav', open(f'input\{audio_file_name }', 'rb'), 'audio/wav'),
+        'TEXT': ('transcript.txt', open(f'input\{text_file_name}', 'rb'), 'text/plain'),
+    }
 
-    # Create a recognizer object
-    rec = KaldiRecognizer(model, wf.getframerate())
-    rec.SetWords(True)  # Tell Vosk to return words with timestamps
+    # Make the request
+    response = requests.post(url, data=payload, files=files)
 
-    # Process the entire audio file
-    results = []
-    while True:
-        data = wf.readframes(4000)  # Read 4000 frames from the file
-        if len(data) == 0:
-            break
-        if rec.AcceptWaveform(data):
-            results.append(json.loads(rec.Result()))
+    # Parse the string
+    root = ET.fromstring(response.content)
 
-    # Add the final result to the results list
-    results.append(json.loads(rec.FinalResult()))
+    # Extract the download link
+    download_link = root.find('.//downloadLink').text
 
-    # Prepare a list for the Vosk processed data
-    vosk_processed_data = []
-    for result in results:
-        if 'result' in result:  # Check if there are words detected
-            for word_info in result['result']:
-                # Convert seconds to milliseconds for consistency with the rest of the system
-                start_ms = int(word_info['start'] * 1000)
-                end_ms = int(word_info['end'] * 1000)
-                vosk_processed_data.append({
-                    'word': word_info['word'],
-                    'start': start_ms,
-                    'end': end_ms
-                })
-                
-    return vosk_processed_data  # Return the list of word information
+    response = requests.get(download_link)
 
+    # Check if the request was successful
+    if response.status_code == 200:
+        # Save the TextGrid to a file
+        with open('input/output.TextGrid', 'wb') as file:
+            file.write(response.content)
+            return "input/output.TextGrid"
+    else:
+        return False
+    
+def get_durations(url, audio_file_name, text_file_name):
+    inputFN = generate_text_grid(url, audio_file_name, text_file_name)
+    tg = textgrid.openTextgrid(inputFN, includeEmptyIntervals=False)
+    
+    wordTier = tg.getTier('ORT-MAU')
+    
+    
+    word_durations = [
+        {
+            'word': entry.label if entry.label else "[Silence]",  # Use "[Silence]" for empty labels
+            'start': int(entry.start * 1000),
+            'end': int(entry.end * 1000)
+        }
+        for entry in wordTier.entries
+    ]
+
+    return word_durations
