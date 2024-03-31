@@ -1,6 +1,7 @@
 from pymongo import MongoClient
 import gridfs
 from bson.objectid import ObjectId
+from pydub import AudioSegment
 
 # Connection URI
 mongo_uri = 'mongodb://localhost:27017/'
@@ -9,31 +10,44 @@ client = MongoClient(mongo_uri)
 # Connect to the specific database
 db = client['ozzypie_db']
 
-def retrieve_audio_file(db,object_id,output_file_path):  
+def get_user_object_id(username):
+    client = MongoClient('mongodb://localhost:27017/')
+    db = client['ozzypie_db']
+    collection = db['users']
+    
+    user_document = collection.find_one({'username': username})
+    
+    if user_document:
+        return user_document['_id']
+    else:
+        return None
+
+
+
+def retrieve_audio_file(db,object_id):
     try:
+        output_file_path = "output/output.wav"
         # Create a GridFS object
         fs = gridfs.GridFS(db)
 
         # Convert the string ID to an ObjectId
-        file_id = ObjectId("6608bfe5ec888042a714458a")
+        file_id = ObjectId(object_id)
 
         # Retrieve the stored file by its ID
         file = fs.get(file_id)  # Now using ObjectId to retrieve the file
 
-        # # Retrieve the stored file by its ID
-        # file = fs.get("6608bfe5ec888042a714458a")  # or use fs.find_one({'filename': 'myaudiofile.mp3'}) to retrieve by filename
-
-        # Save or process the retrieved file
-        # output_file_path = 'input/test.mp3'
         with open(output_file_path, 'wb') as output_file:
             output_file.write(file.read())
+        
+        #Converts .wav file
+        audio = AudioSegment.from_file(output_file_path)
 
-        return output_file_path
+        return audio
 
     except Exception as e:
         return None
 
-def upload_audio_file(file_path):
+def upload_audio_file(file_path, audio_filename):
     # Create a GridFS object
     try:
         fs = gridfs.GridFS(db)
@@ -48,21 +62,31 @@ def upload_audio_file(file_path):
     except Exception as e:
         return None
 
-def create_new_dhf_lesson(db,user_id, assessment_name,reading_level,audio_data,audio_file_path,text_data):
+def create_new_dhf_lesson(user, assessment_name, reading_level, updated_final_words_durations, audio_filepath, words_from_file, audio_file_name, word_durations, word_durations_s):
 
     try:
+        
+        mongo_uri = 'mongodb://localhost:27017/'
+        client = MongoClient(mongo_uri)
+        db = client['ozzypie_db']
+
         collection = db['dhf_reading_lessons']
-        audio_id = upload_audio_file(audio_file_path)
+
+        audio_id = upload_audio_file(audio_filepath,audio_file_name)
+        user_id = get_user_object_id(user)
 
         if audio_id:
             # # Insert a document into the collection
             new_lesson = {
+                'user_id' : user_id,
                 'assessment_name': assessment_name,
                 'reading_level': reading_level,
+                'updated_final_words_durations': updated_final_words_durations,
                 'audio_file_ID': audio_id,
-                'audio_data': audio_data,
-                'text_data' : text_data,
-                'user_id' : user_id
+                'words_from_file': words_from_file,
+                'word_durations': word_durations,
+                'word_durations_s': word_durations_s
+                
             }
 
             collection.insert_one(new_lesson)
@@ -72,3 +96,46 @@ def create_new_dhf_lesson(db,user_id, assessment_name,reading_level,audio_data,a
     
     except Exception as e:
         return False
+
+def get_reading_assessments(username):   
+    try:
+        client = MongoClient('mongodb://localhost:27017/')
+        db = client['ozzypie_db']
+        collection = db['dhf_reading_lessons']
+
+        user_id = get_user_object_id(username)
+
+        # Find Reading lessons for the current user
+        assessments = collection.find({"user_id": user_id}, {"assessment_name": 1})
+
+        # Extracting the names and IDs
+        assessments_info = [{"id": str(assessment["_id"]), "name": assessment['assessment_name']} for assessment in assessments]
+        return assessments_info
+    
+    except Exception as e:
+        return None
+
+def get_reading_assessment_by_id(id):
+    try:
+        client = MongoClient('mongodb://localhost:27017/')
+        db = client['ozzypie_db']
+        collection = db['dhf_reading_lessons']
+
+        assessment = collection.find_one({"_id": ObjectId(id)})
+        audio_file =retrieve_audio_file(db,assessment['audio_file_ID'])
+
+        if assessment:
+            # Remove _id and audio_file_ID from the dictionary
+            assessment.pop('_id', None)
+            assessment.pop('user_id', None)
+            assessment.pop('audio_file_ID', None)
+
+        print(audio_file)
+
+        return {
+            'assessment' : assessment,
+        }
+    
+    except Exception as e:
+        return print(e)
+

@@ -19,6 +19,7 @@ import xml.etree.ElementTree as ET
 
 from controllers.mongo_controllers import create_new_dhf_lesson
 
+
 url = "https://clarin.phonetik.uni-muenchen.de/BASWebServices/services/runMAUSBasic"
 
 
@@ -63,7 +64,7 @@ def process_chunk(chunk, index, chunk_length_ms):
 # audioFile and text_file
 #input <== temporarily store audio and text file (audio.wav, text.txt)
 
-def new_open_audio(audio_file_name, passage_name):
+def new_open_audio(audio_file_name, passage_name, audio_file, text_file, assessment_name, reading_level, user):
     # Load and preprocess audio
     text_file_name = 'passage.txt'
     audio_path = 'audio.wav'
@@ -91,6 +92,7 @@ def new_open_audio(audio_file_name, passage_name):
     durations =  get_durations(url, audio_path, text_file_name)
     
     word_durations = durations['durations']
+    word_durations_s = durations['durations_s']
     
     print(word_durations)
 
@@ -157,11 +159,16 @@ def new_open_audio(audio_file_name, passage_name):
     print(updated_final_words_durations)
     # Return final data structure
 
+    created = create_new_dhf_lesson(user, assessment_name, reading_level, updated_final_words_durations, audio_path2, words_from_file, audio_file_name, word_durations, word_durations_s  )
+
+    print(created)
+     
     #this function save the stuff to mongo db <============
     return {
         'audio_data': updated_final_words_durations,
         'text_data': words_from_file,
-        'duration_data': word_durations
+        'duration_data': word_durations,
+        "durarion_data_s": word_durations_s
     }
 
 
