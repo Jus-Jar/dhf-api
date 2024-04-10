@@ -94,7 +94,13 @@ def new_open_audio(audio_file_name, passage_name, audio_file, text_file, assessm
     word_durations = durations['durations']
     word_durations_s = durations['durations_s']
     
-    print(word_durations)
+    if word_durations_s and word_durations_s[0]['word'] == '[Silence]':
+        initial_silence_duration = word_durations_s[0]['end'] - word_durations_s[0]['start']
+    else:
+        initial_silence_duration = 1000
+    
+    
+    # print(word_durations)
 
    # Initialize updated_final_words_durations for later use with duration data
     updated_final_words_durations = []
@@ -155,13 +161,24 @@ def new_open_audio(audio_file_name, passage_name, audio_file, text_file, assessm
                 'end': None,
                 'match': matched
             })
+            
+    # silences_with_match = [{'word': item['word'], 'start': item['start'], 'end': item['end'], 'match': True} for item in word_durations_s if item['word'] == '[Silence]']
 
-    print(updated_final_words_durations)
-    # Return final data structure
+    # print(silences_with_match)
 
-    created = create_new_dhf_lesson(user, assessment_name, reading_level, updated_final_words_durations, audio_path2, words_from_file, audio_file_name, word_durations, word_durations_s  )
+    # Adding extracted silences to updated_final_words_durations
+    # updated_final_words_durations.extend(silences_with_match)
+    
+    # print(updated_final_words_durations)
 
-    print(created)
+    # Sorting the combined list based on start times
+    # updated_final_words_durations_sorted = sorted(updated_final_words_durations, key=lambda x: x['start'])
+
+    # updated_final_words_durations = updated_final_words_durations_sorted
+
+    created = create_new_dhf_lesson(user, assessment_name, reading_level, updated_final_words_durations, audio_path2, words_from_file, audio_file_name, word_durations, word_durations_s, initial_silence_duration  )
+
+    # print(created)
      
     #this function save the stuff to mongo db <============
     return {
@@ -256,11 +273,11 @@ def generate_text_grid(url,audio_file_name , text_file_name):
     
 def get_durations(url, audio_file_name, text_file_name):
     inputFN = generate_text_grid(url, audio_file_name, text_file_name)
-    tg = textgrid.openTextgrid(inputFN, includeEmptyIntervals=True)
+    tg = textgrid.openTextgrid(inputFN, includeEmptyIntervals=False)
     
-    tg1 = textgrid.openTextgrid(inputFN, includeEmptyIntervals=False)
+    tg1 = textgrid.openTextgrid(inputFN, includeEmptyIntervals=True)
     
-    wordTier = tg1.getTier('ORT-MAU')
+    wordTier = tg.getTier('ORT-MAU')
     
     wordTier_S = tg1.getTier('ORT-MAU')
     
@@ -293,25 +310,7 @@ def get_durations(url, audio_file_name, text_file_name):
     # if we do decide to store the textgrid, we can pull that from MongoDB
     # THEN do processing
 
-    
-def analyzeVoice(audio_file_name , text_file_name):
-        
-    result = new_open_audio(audio_file_name, text_file_name)
-        
-    audio_data = result['audio_data']
-    duration_data = result['duration_data']
-    
-    count = 0
-    
-    for item in audio_data:
-        if item['match'] == True:
-            count+=1
-    
-    accuracy = (count/len(audio_data)) * 100
-    
-    print(accuracy)
-    
-    return "Success"
+
             
         
         
