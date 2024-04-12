@@ -1,4 +1,4 @@
-from mongo_controllers import get_reading_assessment_by_id
+from controllers.mongo_controllers import get_reading_assessment_by_id
 
 def analyzeVoice(id):
     result = get_reading_assessment_by_id(id)
@@ -64,5 +64,5 @@ def classify_reading_rate(reader_wpm, expected_wpm):
         return "Average"
 
    
-analyzeVoice(id = '660cc221fe912c6589c51094')      
+# analyzeVoice(id = '660cc221fe912c6589c51094')      
          

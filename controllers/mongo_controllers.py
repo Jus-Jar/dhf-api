@@ -62,7 +62,7 @@ def upload_audio_file(file_path, audio_filename):
     except Exception as e:
         return None
 
-def create_new_dhf_lesson(user, assessment_name, reading_level, updated_final_words_durations, audio_filepath, words_from_file, audio_file_name, word_durations, word_durations_s, initial_silence_duration):
+def create_new_dhf_lesson(user, assessment_name, reading_level, updated_final_words_durations, audio_filepath, words_from_file, audio_file_name, word_durations, word_durations_s, initial_silence_duration = None):
 
     try:
         
