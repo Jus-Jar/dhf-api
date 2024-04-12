@@ -1,6 +1,7 @@
 from flask import jsonify, request, send_file
 from app import app
-from controllers.controllers import  new_open_audio, analyzeVoice
+from controllers.controllers import  new_open_audio
+from controllers.analysis_contollers import analyzeVoice
 from controllers.file_controllers import store_files
 from controllers.mongo_controllers import get_reading_assessments, get_reading_assessment_by_id
 
