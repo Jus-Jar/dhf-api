@@ -158,6 +158,15 @@ def new_open_audio(audio_file_name, passage_name, audio_file, text_file, assessm
         #         'match': matched
         #     })
 
+
+    silences_with_match = [{'word': item['word'], 'start': item['start'], 'end': item['end'], 'match': True} for item in word_durations_s if item['word'] == '[Silence]']
+
+    updated_final_words_durations.extend(silences_with_match)
+
+    updated_final_words_durations_sorted = sorted(updated_final_words_durations, key=lambda x: x['start']) 
+
+    updated_final_words_durations = updated_final_words_durations_sorted
+
     print(updated_final_words_durations)
     # Return final data structure
 
@@ -258,11 +267,11 @@ def generate_text_grid(url,audio_file_name , text_file_name):
     
 def get_durations(url, audio_file_name, text_file_name):
     inputFN = generate_text_grid(url, audio_file_name, text_file_name)
-    tg = textgrid.openTextgrid(inputFN, includeEmptyIntervals=True)
+    tg = textgrid.openTextgrid(inputFN, includeEmptyIntervals=False)
     
-    tg1 = textgrid.openTextgrid(inputFN, includeEmptyIntervals=False)
+    tg1 = textgrid.openTextgrid(inputFN, includeEmptyIntervals=True)
     
-    wordTier = tg1.getTier('ORT-MAU')
+    wordTier = tg.getTier('ORT-MAU')
     
     wordTier_S = tg1.getTier('ORT-MAU')
     
