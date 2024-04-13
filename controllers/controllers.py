@@ -94,7 +94,7 @@ def new_open_audio(audio_file_name, passage_name, audio_file, text_file, assessm
     word_durations = durations['durations']
     word_durations_s = durations['durations_s']
     
-    print(word_durations)
+    # print(word_durations)
 
    # Initialize updated_final_words_durations for later use with duration data
     updated_final_words_durations = []
@@ -128,7 +128,7 @@ def new_open_audio(audio_file_name, passage_name, audio_file, text_file, assessm
         matched = False
         fallback_timing = None
         if word_index < len(words_from_file):
-            matched = compare_words(word, words_from_file[word_index])
+            matched = compare_words(word, words_from_file[word_index].translate(str.maketrans('', '', string.punctuation)))
             # Use the index to find the corresponding timing from word_durations as fallback
             # if not matched and word_index < len(word_durations):
             fallback_timing = word_durations[word_index]
@@ -167,7 +167,7 @@ def new_open_audio(audio_file_name, passage_name, audio_file, text_file, assessm
 
     updated_final_words_durations = updated_final_words_durations_sorted
 
-    print(updated_final_words_durations)
+    # print(updated_final_words_durations)
     # Return final data structure
 
     created = create_new_dhf_lesson(user, assessment_name, reading_level, updated_final_words_durations, audio_path2, words_from_file, audio_file_name, word_durations, word_durations_s)
@@ -217,18 +217,21 @@ def read_words_from_file(text_file_name):
     words_list = []
     
     # Define a translation table to remove punctuation except apostrophes
-    remove_punct = str.maketrans('', '', string.punctuation.replace("'", ""))  # Keep apostrophes
+    # remove_punct = str.maketrans('', '', string.punctuation.replace("'", ""))  # Keep apostrophes
+    
     
     # Open and read the text file
-    try:
+    try: 
         with open(text_file_path, 'r') as file:
             for line in file:
                 # Remove punctuation except apostrophes and split each line into words
-                clean_line = line.translate(remove_punct)
+                clean_line = line
                 words_list.extend(clean_line.split())
     except Exception as error:
         print('Error reading text file:', error)
         return []  # Return an empty list in case of error
+    
+    print(words_list)
     
     # Return the list of words
     return words_list
