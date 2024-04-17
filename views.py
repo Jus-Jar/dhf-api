@@ -1,7 +1,7 @@
 from flask import jsonify, request, send_file
 from app import app
 from controllers.controllers import  new_open_audio
-from controllers.analysis_contollers import analyzeVoice
+from controllers.analysis_contollers import analyze
 from controllers.file_controllers import store_files
 from controllers.mongo_controllers import get_reading_assessments, get_reading_assessment_by_id
 
@@ -31,18 +31,6 @@ def open_new():
 
 
     return jsonify(result), 201
-
-@app.route('/api/analysis', methods=['POST'])
-def analyze_voice():
-    audio_file_name = request.form.get('audioFileName')
-    text_file_name = request.form.get('textFileName')
-
-    # Print the file names
-    print(f"Received audio file name: {audio_file_name}")
-    print(f"Received text file name: {text_file_name}")
-    result = analyzeVoice(audio_file_name , text_file_name )
-    return "Success", 201
-
 
 @app.route('/api/readingAssessments/<username>', methods=['GET'])
 def retrieve_assessments_names(username):

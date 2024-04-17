@@ -27,12 +27,6 @@ def process_chunk(chunk, index, chunk_length_ms):
     chunk_hash = hashlib.md5(chunk.raw_data).hexdigest()
     cache_file = f"cache_{chunk_hash}.json"
 
-    # # Check if this chunk has been processed before
-    # if os.path.exists(cache_file):
-    #     with open(cache_file, 'r') as file:
-    #         print(f"Retrieving cached results for chunk {index}")
-    #         return json.load(file)  # Return cached results without reprocessing
-
     # If not cached, process the chunk
     chunk_name = f"chunk{index}.wav"
     chunk.export(chunk_name, format="wav")  # Export the audio chunk to a WAV file
@@ -59,10 +53,6 @@ def process_chunk(chunk, index, chunk_length_ms):
             print(f"Chunk {index}: Could not request results from SpeechRecognition service; {e}")
 
     return []
-
-
-# audioFile and text_file
-#input <== temporarily store audio and text file (audio.wav, text.txt)
 
 def new_open_audio(audio_file_name, passage_name, audio_file, text_file, assessment_name, reading_level, user):
     # Load and preprocess audio
@@ -94,8 +84,6 @@ def new_open_audio(audio_file_name, passage_name, audio_file, text_file, assessm
     word_durations = durations['durations']
     word_durations_s = durations['durations_s']
     
-    # print(word_durations)
-
    # Initialize updated_final_words_durations for later use with duration data
     updated_final_words_durations = []
 
@@ -149,14 +137,7 @@ def new_open_audio(audio_file_name, passage_name, audio_file, text_file, assessm
                 'end': fallback_timing['end'],
                 'match': matched
             })
-        # else:
-        #     # If no timing information is available, consider how to handle this scenario
-        #     updated_final_words_durations.append({
-        #         'word': word,
-        #         'start': None,  # Consider a default or previous known timing
-        #         'end': None,
-        #         'match': matched
-        #     })
+       
 
 
     silences_with_match = [{'word': item['word'], 'start': item['start'], 'end': item['end'], 'match': True} for item in word_durations_s if item['word'] == '[Silence]']
@@ -166,14 +147,9 @@ def new_open_audio(audio_file_name, passage_name, audio_file, text_file, assessm
     updated_final_words_durations_sorted = sorted(updated_final_words_durations, key=lambda x: x['start']) 
 
     updated_final_words_durations = updated_final_words_durations_sorted
-
-    # print(updated_final_words_durations)
-    # Return final data structure
-
+    
     created = create_new_dhf_lesson(user, assessment_name, reading_level, updated_final_words_durations, audio_path2, words_from_file, audio_file_name, word_durations, word_durations_s)
 
-    print(created)
-     
     #this function save the stuff to mongo db <============
     return {
         'audio_data': updated_final_words_durations,
@@ -203,22 +179,13 @@ def compare_words(word1, word2):
         return True
     return False
 
-# Example function calls (commented out to comply with instruction)
-# print(compare_words('example', 'sample'))  # Should analyze the similarity based on phonetics
-
 
 def read_words_from_file(text_file_name):
     # Path to your text file
     text_file_path = f'input\{text_file_name}'  # Replace with your text file path
 
-
-    
     # List to store words
     words_list = []
-    
-    # Define a translation table to remove punctuation except apostrophes
-    # remove_punct = str.maketrans('', '', string.punctuation.replace("'", ""))  # Keep apostrophes
-    
     
     # Open and read the text file
     try: 
@@ -303,29 +270,7 @@ def get_durations(url, audio_file_name, text_file_name):
         'durations_s' : word_durations_S
     }
 
-    #Steps for get_durations with MongoDB implementation:
-    # if we do decide to store the textgrid, we can pull that from MongoDB
-    # THEN do processing
 
-    
-def analyzeVoice(audio_file_name , text_file_name):
-        
-    result = new_open_audio(audio_file_name, text_file_name)
-        
-    audio_data = result['audio_data']
-    duration_data = result['duration_data']
-    
-    count = 0
-    
-    for item in audio_data:
-        if item['match'] == True:
-            count+=1
-    
-    accuracy = (count/len(audio_data)) * 100
-    
-    print(accuracy)
-    
-    return "Success"
             
         
         
